@@ -67,7 +67,7 @@ docs/             # 文档
 ```
 
 ## 开发团队
-[待补充]
+无
 
-## 许可证
-MIT License 
+## 联系我
+xiesmail2000@gmail.com
