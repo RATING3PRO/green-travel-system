@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>城市绿色出行优化系统</title>
+    <meta name="referrer" content="origin">
     <link rel="stylesheet" href="/static/css/main.css">
     <link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script type="text/javascript" src="//api.map.baidu.com/api?type=webgl&v=1.0&ak=oqjDGbop5m57eIPpPNSGFxlXzb6rcCDy"></script>
 </head>
 <body>
     <!-- 导航栏 -->
@@ -141,6 +142,22 @@
                 <div id="routeSegments"></div>
             </div>
 
+            <!-- AI建议卡片 -->
+            <div id="aiAdvice" class="ai-advice" style="display: none;">
+                <div class="ai-advice-card">
+                    <h3><i class="fas fa-lightbulb"></i> AI智能建议</h3>
+                    <div class="ai-advice-content"></div>
+                </div>
+            </div>
+
+            <!-- 路线分析 -->
+            <div id="routeAnalysis" class="route-analysis" style="display: none;">
+                <div class="analysis-card">
+                    <h3><i class="fas fa-chart-line"></i> 路线分析</h3>
+                    <div class="analysis-content"></div>
+                </div>
+            </div>
+
             <!-- AI聊天区域 -->
             <div class="chat-container">
                 <div class="chat-header">
@@ -158,7 +175,7 @@
 
         <!-- 右侧地图 -->
         <div class="right-panel">
-            <div id="map-container" style="height: 100%; width: 100%;"></div>
+            <div id="map-container" style="width: 100%; height: 100%; overflow: hidden;"></div>
         </div>
     </main>
 
@@ -213,44 +230,14 @@
     <!-- 通知提示 -->
     <div id="notification" class="notification" style="display: none;"></div>
 
-    <!-- 加载脚本 -->
-    <script src="https://cdn.bootcdn.net/ajax/libs/axios/0.21.1/axios.min.js"></script>
-    <script src="https://webapi.amap.com/maps?v=2.0&key=your-amap-key"></script>
-    <script src="/static/js/main.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        // 初始化地图
-        const map = L.map('map-container').setView([39.9042, 116.4074], 13); // 北京市中心
-        
-        // 添加OpenStreetMap图层
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-        
-        // 路线绘制函数
-        function drawRoute(coordinates) {
-            L.polyline(coordinates, {
-                color: '#4CAF50',
-                weight: 5,
-                opacity: 0.8
-            }).addTo(map);
-        }
-        
-        // 添加标记点函数
-        function addMarker(lat, lng, title) {
-            L.marker([lat, lng])
-                .bindPopup(title)
-                .addTo(map);
-        }
-    </script>
-
     <!-- 添加相关的CSS样式 -->
     <style>
     .main-container {
         display: flex;
-        height: calc(100vh - 60px); /* 减去导航栏高度 */
+        height: calc(100vh - 60px);
         padding: 20px;
         gap: 20px;
+        background: #f5f5f5;
     }
 
     .weather-card, .traffic-card {
@@ -375,10 +362,30 @@
 
     .right-panel {
         flex: 1;
+        min-width: 0;
         background: #fff;
         border-radius: 12px;
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         overflow: hidden;
+        position: relative;
+        height: 100%;
+    }
+
+    #map-container {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        font-family: "微软雅黑";
+        background: #f5f5f5;
+    }
+
+    /* 隐藏百度地图Logo */
+    .BMapGLLib_Drawing {
+        display: none !important;
+    }
+    
+    .anchorBL {
+        display: none !important;
     }
 
     .route-planner {
@@ -594,6 +601,85 @@
             height: 400px;
         }
     }
+
+    /* AI建议卡片样式 */
+    .ai-advice, .route-analysis {
+        margin: 15px 0;
+        animation: fadeIn 0.3s ease-in-out;
+    }
+
+    .ai-advice-card, .analysis-card {
+        background: white;
+        border-radius: 8px;
+        padding: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .ai-advice-card h3, .analysis-card h3 {
+        color: #2196F3;
+        margin: 0 0 10px 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .ai-advice-content, .analysis-content {
+        color: #333;
+        line-height: 1.6;
+        font-size: 14px;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* 更新左侧面板样式 */
+    .left-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        padding: 20px;
+        background: #f5f5f5;
+        width: 400px;
+        height: calc(100vh - 60px);
+        overflow-y: auto;
+    }
+
+    /* 美化滚动条 */
+    .left-panel::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .left-panel::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+
+    .left-panel::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+    }
+
+    .left-panel::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
     </style>
+
+    <!-- 加载百度地图API -->
+    <script type="text/javascript">
+        window.BMAP_AUTHENTIC_KEY = "oqjDGbop5m57eIPpPNSGFxlXzb6rcCDy";
+    </script>
+    <script type="text/javascript" src="https://api.map.baidu.com/api?v=3.0&ak=oqjDGbop5m57eIPpPNSGFxlXzb6rcCDy"></script>
+    
+    <!-- 加载其他脚本 -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/axios/0.21.1/axios.min.js"></script>
+    <script src="/static/js/main.js"></script>
 </body>
 </html> 

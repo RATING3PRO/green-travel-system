@@ -3,44 +3,50 @@ import aiohttp
 from ..models.schemas import Location
 import polyline
 import random
+from src.config.settings import settings
 
 class RouteService:
     def __init__(self):
-        self.base_url = "https://router.project-osrm.org/route/v1"
-        self.profile = "driving"  # 可选：driving, walking, cycling
+        self.base_url = "https://restapi.amap.com/v3/direction/driving"
+    
+    async def plan_route(self, origin: str, destination: str) -> Dict[str, Any]:
+        params = {
+            "key": settings.AMAP_API_KEY,
+            "origin": origin,
+            "destination": destination,
+            "strategy": 2,  # 2=速度优先
+            "extensions": "all"
+        }
         
-    async def plan_route(self, start: Location, end: Location) -> Dict[str, Any]:
-        """规划路线"""
         try:
-            coordinates = f"{start.longitude},{start.latitude};{end.longitude},{end.latitude}"
-            url = f"{self.base_url}/{self.profile}/{coordinates}"
-            params = {
-                "overview": "full",
-                "geometries": "geojson",
-                "steps": "true",
-                "annotations": "true"
-            }
-            
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params) as response:
+                async with session.get(self.base_url, params=params) as response:
                     if response.status == 200:
                         data = await response.json()
-                        if data["code"] == "Ok" and len(data["routes"]) > 0:
-                            route = data["routes"][0]
-                            return {
-                                "status": "1",
-                                "route": {
-                                    "distance": round(route["distance"]),  # 米
-                                    "duration": round(route["duration"] / 60),  # 分钟
-                                    "coordinates": self._extract_coordinates(route["geometry"]["coordinates"]),
-                                    "steps": self._process_steps(route["legs"][0]["steps"])
-                                }
-                            }
-                    return {"status": "0", "error": "无法获取路线信息"}
+                        return self._parse_response(data)
+                    return {"status": "error", "message": "API请求失败"}
         except Exception as e:
-            print(f"路线规划错误: {str(e)}")
-            return {"status": "0", "error": f"路线规划失败: {str(e)}"}
-    
+            return {"status": "error", "message": str(e)}
+
+    def _parse_response(self, data: Dict) -> Dict:
+        if data["status"] != "1":
+            return {"status": "error", "message": data.get("info", "未知错误")}
+        
+        route = data["route"]["paths"][0]
+        return {
+            "status": "success",
+            "distance": route["distance"],
+            "duration": route["duration"],
+            "steps": [
+                {
+                    "instruction": step["instruction"],
+                    "distance": step["distance"],
+                    "polyline": step["polyline"].split(";")
+                } for step in route["steps"]
+            ],
+            "polyline": route["polyline"].split(";")
+        }
+
     def _extract_coordinates(self, coords: List[List[float]]) -> List[List[float]]:
         """提取并转换坐标点"""
         return [[coord[1], coord[0]] for coord in coords]  # 转换为[lat, lng]格式

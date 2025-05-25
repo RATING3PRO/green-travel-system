@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from sqlalchemy.orm import Session
 import uvicorn
 from src.api import routes, users
@@ -17,6 +17,7 @@ from src.utils.route_service import route_service
 from src.models.schemas import Location, RouteRequest
 from src.api.auth import router as auth_router
 import os
+from pathlib import Path
 
 app = FastAPI(
     title="城市绿色出行优化系统",
@@ -36,13 +37,19 @@ app.add_middleware(
 # 注册认证路由
 app.include_router(auth_router)
 
-# 静态文件服务
-static_path = os.path.join(os.path.dirname(__file__), "static")
-templates_path = os.path.join(os.path.dirname(__file__), "frontend", "templates")
-app.mount("/static", StaticFiles(directory=static_path), name="static")
+# 获取项目根目录
+BASE_DIR = Path(__file__).resolve().parent.parent
+TEMPLATES_DIR = BASE_DIR / "src" / "frontend" / "templates"
+STATIC_DIR = BASE_DIR / "src" / "static"
 
-# 模板配置
-templates = Jinja2Templates(directory=templates_path)
+print(f"Templates directory: {TEMPLATES_DIR}")
+print(f"Static directory: {STATIC_DIR}")
+
+# 挂载静态文件目录
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+# 设置模板目录
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # 注册路由
 app.include_router(
@@ -67,6 +74,18 @@ async def startup_event():
 async def read_root(request: Request):
     """渲染主页"""
     return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/test_map", response_class=HTMLResponse)
+async def test_map(request: Request):
+    """渲染地图测试页面"""
+    try:
+        file_path = TEMPLATES_DIR / "test_map.html"
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    except Exception as e:
+        print(f"Error reading test_map.html: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/geocode")
 async def geocode(address: str):

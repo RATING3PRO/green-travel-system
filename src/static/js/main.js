@@ -45,10 +45,108 @@ function setAuthToken(token) {
 
 // 初始化地图
 function initMap() {
-    map = L.map('map-container').setView([39.9042, 116.4074], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
+    try {
+        console.log("开始初始化地图...");
+        // 如果地图已经初始化，则返回
+        if (map !== null) {
+            console.log("地图已经初始化");
+            return true;
+        }
+
+        // 确保BMapGL已经加载
+        if (typeof BMapGL === 'undefined') {
+            console.error("百度地图API未加载");
+            return false;
+        }
+
+        // 创建地图实例
+        map = new BMapGL.Map("map-container");
+        
+        // 创建点坐标（默认北京市中心）
+        const point = new BMapGL.Point(116.404, 39.915);
+        
+        // 初始化地图，设置中心点坐标和地图级别
+        map.centerAndZoom(point, 11);
+        
+        // 开启鼠标滚轮缩放
+        map.enableScrollWheelZoom();
+        
+        // 添加地图控件
+        map.addControl(new BMapGL.NavigationControl3D());    // 添加3D控制器
+        map.addControl(new BMapGL.ZoomControl());           // 添加缩放控件
+        map.addControl(new BMapGL.ScaleControl());          // 添加比例尺控件
+        map.addControl(new BMapGL.MapTypeControl());        // 添加地图类型控件
+        
+        // 设置地图倾斜角度和旋转角度
+        map.setTilt(30);       // 设置倾斜角度
+        map.setHeading(0);     // 设置旋转角度
+
+        console.log("地图初始化成功");
+        return true;
+    } catch (error) {
+        console.error("地图初始化失败:", error);
+        return false;
+    }
+}
+
+// 路线绘制函数
+function drawRoute(path) {
+    if (!map || !path || path.length < 2) {
+        console.warn("无法绘制路线：地图未初始化或路径数据无效");
+        return null;
+    }
+    
+    try {
+        // 清除现有路线
+        map.clearOverlays();
+        
+        // 创建折线点数组
+        const points = path.map(coord => new BMapGL.Point(coord[0], coord[1]));
+        
+        // 创建折线对象
+        const polyline = new BMapGL.Polyline(points, {
+            strokeColor: '#4CAF50',
+            strokeWeight: 6,
+            strokeOpacity: 0.8
+        });
+        
+        // 将折线添加到地图
+        map.addOverlay(polyline);
+        
+        // 自适应显示
+        map.setViewport(points);
+        
+        return polyline;
+    } catch (error) {
+        console.error("绘制路线失败:", error);
+        return null;
+    }
+}
+
+// 添加标记点函数
+function addMarker(lat, lng, title) {
+    if (!map) {
+        console.warn("无法添加标记：地图未初始化");
+        return null;
+    }
+    
+    try {
+        const point = new BMapGL.Point(lng, lat);
+        const marker = new BMapGL.Marker(point);
+        map.addOverlay(marker);
+        
+        if (title) {
+            const label = new BMapGL.Label(title, {
+                offset: new BMapGL.Size(20, -10)
+            });
+            marker.setLabel(label);
+        }
+        
+        return marker;
+    } catch (error) {
+        console.error("添加标记失败:", error);
+        return null;
+    }
 }
 
 // 显示天气信息
@@ -206,12 +304,8 @@ async function displayRoute(startLocation, endLocation) {
         
         // 添加起点和终点标记
         console.log('添加地图标记...');
-        const startMarker = L.marker([startData.location.lat, startData.location.lng])
-            .bindPopup("起点: " + startLocation)
-            .addTo(map);
-        const endMarker = L.marker([endData.location.lat, endData.location.lng])
-            .bindPopup("终点: " + endLocation)
-            .addTo(map);
+        const startMarker = addMarker(startData.location.lat, startData.location.lng, "起点: " + startLocation);
+        const endMarker = addMarker(endData.location.lat, endData.location.lng, "终点: " + endLocation);
         markers.push(startMarker, endMarker);
         
         // 获取天气信息
@@ -230,14 +324,10 @@ async function displayRoute(startLocation, endLocation) {
             // 绘制路线
             console.log('绘制路线...');
             const coordinates = routeData.route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-            routeLayer = L.polyline(coordinates, {
-                color: '#4CAF50',
-                weight: 5,
-                opacity: 0.8
-            }).addTo(map);
+            drawRoute(coordinates);
             
             // 调整地图视图以显示整个路线
-            map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
+            map.setViewport(coordinates);
             
             // 更新路线信息
             document.getElementById('totalDistance').textContent = (routeData.route.distance / 1000).toFixed(1) + '公里';
@@ -266,11 +356,12 @@ async function displayRoute(startLocation, endLocation) {
 
 // 清除地图上的所有标记和路线
 function clearMap() {
-    if (routeLayer) {
-        map.removeLayer(routeLayer);
+    if (map) {
+        map.clearOverlays();
+        markers = [];
+        startMarker = null;
+        endMarker = null;
     }
-    markers.forEach(marker => map.removeLayer(marker));
-    markers = [];
 }
 
 // 显示交通状况
@@ -324,14 +415,25 @@ async function displayTraffic() {
 
 // 初始化函数
 async function init() {
-    // 绑定路线规划按钮事件
-    document.getElementById('planRouteBtn').addEventListener('click', handleRoutePlanning);
-    
-    // 获取并显示天气信息
-    await displayWeather(39.9042, 116.4074); // 默认显示北京市中心的天气
-    
-    // 获取并显示交通状况
-    await displayTraffic();
+    try {
+        console.log("开始初始化应用...");
+        
+        // 初始化地图
+        if (initMap()) {
+            // 绑定路线规划按钮事件
+            document.getElementById('planRouteBtn').addEventListener('click', handleRoutePlanning);
+            
+            // 获取并显示天气信息
+            await displayWeather(39.9042, 116.4074); // 默认显示北京市中心的天气
+            
+            // 获取并显示交通状况
+            await displayTraffic();
+            
+            console.log("应用初始化完成");
+        }
+    } catch (error) {
+        console.error("应用初始化失败:", error);
+    }
 }
 
 // 处理路线规划
@@ -401,17 +503,12 @@ async function geocodeLocation(address) {
 // 添加路线起点和终点标记
 function addRouteMarkers(startCoords, endCoords) {
     // 清除现有标记
-    if (startMarker) map.removeLayer(startMarker);
-    if (endMarker) map.removeLayer(endMarker);
+    if (startMarker) map.removeOverlay(startMarker);
+    if (endMarker) map.removeOverlay(endMarker);
     
     // 添加新标记
-    startMarker = L.marker([startCoords.lat, startCoords.lng])
-        .bindPopup('起点')
-        .addTo(map);
-    
-    endMarker = L.marker([endCoords.lat, endCoords.lng])
-        .bindPopup('终点')
-        .addTo(map);
+    startMarker = addMarker(startCoords.lat, startCoords.lng, "起点");
+    endMarker = addMarker(endCoords.lat, endCoords.lng, "终点");
 }
 
 // 规划路线
@@ -435,11 +532,7 @@ async function planRoute(startCoords, endCoords) {
         const data = await response.json();
         if (data.status === "1" && data.route) {
             // 绘制路线
-            currentRoute = L.polyline(data.route.coordinates, {
-                color: '#4CAF50',
-                weight: 5,
-                opacity: 0.8
-            }).addTo(map);
+            currentRoute = drawRoute(data.route.coordinates);
             
             // 更新路线信息
             updateRouteInfo(data.route);
@@ -494,97 +587,50 @@ function getStepIcon(mode) {
 // 调整地图视野以显示完整路线
 function fitMapToRoute() {
     if (currentRoute) {
-        const bounds = currentRoute.getBounds();
-        map.fitBounds(bounds, {
-            padding: [50, 50]
-        });
+        const bounds = currentRoute.getPath();
+        map.setViewport(bounds);
     }
 }
 
 // 清除路线
 function clearRoute() {
     if (currentRoute) {
-        map.removeLayer(currentRoute);
+        map.clearOverlays();
         currentRoute = null;
     }
     if (startMarker) {
-        map.removeLayer(startMarker);
+        map.removeOverlay(startMarker);
         startMarker = null;
     }
     if (endMarker) {
-        map.removeLayer(endMarker);
+        map.removeOverlay(endMarker);
         endMarker = null;
     }
     document.querySelector('.route-details').style.display = 'none';
 }
 
-// 事件监听器
+// 等待页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
-    // 初始化地图
-    initMap();
-
-    // 检查是否已登录
-    const token = localStorage.getItem('token');
-    if (token) {
-        setAuthToken(token);
-        getUserInfo();
-    }
-
-    // 登录表单提交
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const username = e.target.username.value;
-        const password = e.target.password.value;
-        await login(username, password);
-    });
-
-    // 注册表单提交
-    document.getElementById('registerForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const username = e.target.username.value;
-        const email = e.target.email.value;
-        const password = e.target.password.value;
-        await register(username, email, password);
-    });
-
-    // 路线规划按钮点击
-    document.getElementById('planRouteBtn').addEventListener('click', async () => {
-        const startLocation = document.getElementById('startLocation').value;
-        const endLocation = document.getElementById('endLocation').value;
-        
-        if (!startLocation || !endLocation) {
-            showNotification('请输入起点和终点位置', 'error');
-            return;
-        }
-        
-        await displayRoute(startLocation, endLocation);
-    });
-
-    // 模态框相关
-    loginBtn.addEventListener('click', () => loginModal.style.display = 'block');
-    registerBtn.addEventListener('click', () => registerModal.style.display = 'block');
-    logoutBtn.addEventListener('click', logout);
-
-    // 关闭模态框
-    document.querySelectorAll('.close').forEach(closeBtn => {
-        closeBtn.addEventListener('click', () => {
-            loginModal.style.display = 'none';
-            registerModal.style.display = 'none';
-        });
-    });
-
-    // 点击模态框外部关闭
-    window.addEventListener('click', (e) => {
-        if (e.target === loginModal) loginModal.style.display = 'none';
-        if (e.target === registerModal) registerModal.style.display = 'none';
-    });
-
-    // 显示交通状况
-    displayTraffic();
+    console.log("DOM加载完成，等待百度地图API...");
     
-    // 每5分钟更新一次交通状况
-    setInterval(displayTraffic, 5 * 60 * 1000);
-
-    // 页面加载完成后初始化
-    init();
+    // 确保百度地图API加载完成
+    const checkBMap = setInterval(() => {
+        if (typeof BMapGL !== 'undefined') {
+            clearInterval(checkBMap);
+            console.log("百度地图API加载完成，开始初始化应用...");
+            
+            // 初始化地图
+            if (initMap()) {
+                // 绑定事件监听器
+                const planRouteBtn = document.getElementById('planRouteBtn');
+                if (planRouteBtn) {
+                    planRouteBtn.addEventListener('click', handleRoutePlanning);
+                }
+                
+                // 显示初始天气和交通信息
+                displayWeather(39.9042, 116.4074);
+                displayTraffic();
+            }
+        }
+    }, 100);
 }); 

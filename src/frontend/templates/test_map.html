@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>百度地图测试</title>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <style>
+    body, html {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        font-family: "微软雅黑";
+    }
+    #map-container {
+        width: 100%;
+        height: 100%;
+    }
+    #error-message {
+        position: fixed;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 0, 0, 0.8);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 5px;
+        display: none;
+    }
+    </style>
+    <script type="text/javascript" src="//api.map.baidu.com/api?type=webgl&v=1.0&ak=oqjDGbop5m57eIPpPNSGFxlXzb6rcCDy"></script>
+</head>
+<body>
+    <div id="map-container"></div>
+    <div id="error-message"></div>
+    <script>
+        function showError(message) {
+            console.error(message);
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        window.onload = function() {
+            try {
+                console.log("开始初始化地图...");
+                
+                // 检查API是否加载
+                if (typeof BMapGL === 'undefined') {
+                    throw new Error("百度地图API未加载");
+                }
+
+                // 创建地图实例
+                var map = new BMapGL.Map("map-container");
+                console.log("地图实例创建成功");
+                
+                // 创建点坐标（默认北京市中心）
+                var point = new BMapGL.Point(116.404, 39.915);
+                
+                // 初始化地图，设置中心点坐标和地图级别
+                map.centerAndZoom(point, 11);
+                console.log("地图中心点设置成功");
+                
+                // 开启鼠标滚轮缩放
+                map.enableScrollWheelZoom();
+                
+                // 添加地图控件
+                map.addControl(new BMapGL.NavigationControl3D());  // 添加3D控制器
+                map.addControl(new BMapGL.ZoomControl());         // 添加缩放控件
+                map.addControl(new BMapGL.ScaleControl());        // 添加比例尺控件
+                map.addControl(new BMapGL.MapTypeControl());      // 添加地图类型控件
+                console.log("地图控件添加成功");
+                
+                // 设置地图倾斜角度和旋转角度
+                map.setTilt(30);     // 设置倾斜角度
+                map.setHeading(0);   // 设置旋转角度
+                
+                // 添加一个标记点
+                var marker = new BMapGL.Marker(point);
+                map.addOverlay(marker);
+                
+                // 添加标签
+                var label = new BMapGL.Label("北京市中心", {
+                    offset: new BMapGL.Size(20, -10)
+                });
+                marker.setLabel(label);
+                
+                console.log("地图初始化完成");
+            } catch (error) {
+                showError("地图初始化失败: " + error.message);
+            }
+        }
+
+        // 监听API加载错误
+        window.onerror = function(msg, url, line, col, error) {
+            if (url.includes('api.map.baidu.com')) {
+                showError("百度地图API加载失败: " + msg);
+            }
+            return false;
+        };
+    </script>
+</body>
+</html> 
