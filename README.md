@@ -34,7 +34,7 @@
 1. 克隆项目
 ```bash
 git clone [项目地址]
-cd green-travel-ai
+cd green-travel-system
 ```
 
 2. 创建虚拟环境
@@ -70,8 +70,6 @@ tests/            # 测试文件
 docs/             # 文档
 ```
 
-## 开发团队
-无
 
 ## 联系我
 xiesmail2000@gmail.com
